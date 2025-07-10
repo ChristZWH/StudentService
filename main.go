@@ -4,6 +4,7 @@ import (
 	"StudentService/database"
 	handlers "StudentService/handleers"
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,19 +16,17 @@ import (
 )
 
 func main() {
+	fmt.Println("Gin version:", gin.Version)
 	// 初始化数据库
-	if err := database.InitMySQL(); err != nil {
+	if err := database.InitDatabases(); err != nil {
 		log.Fatalf("数据库初始化失败: %v", err)
 	}
-	defer database.Close() // 确保关闭连接
+	defer database.CloseDatabases() // 确保关闭所有连接
 
-	// 创建Gin路由
+	// 路由
 	router := gin.Default()
 
-	// 设置可信代理（生产环境必需）
-	router.SetTrustedProxies([]string{"127.0.0.1"})
-
-	// RESTful路由配置
+	// 路由配置restful风
 	studentRoutes := router.Group("/students")
 	{
 		studentRoutes.GET("/", handlers.ListStudents)
@@ -42,16 +41,15 @@ func main() {
 		Addr:    ":8080",
 		Handler: router,
 	}
-
-	// 启动服务器
 	go func() {
 		log.Println("服务启动，监听端口 8080...")
+		// func (srv *http.Server) ListenAndServe() error
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("服务器错误: %v", err)
 		}
 	}()
 
-	// 优雅关闭处理
+	// 关闭处理
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -61,12 +59,10 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 停止监控
-	database.StopMonitor()
-
 	// 关闭服务器
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("服务器关闭失败: %v", err)
 	}
 	log.Println("服务已关闭")
+	//最后还会调用栈main的上一个函数：database.CloseDatabases()
 }

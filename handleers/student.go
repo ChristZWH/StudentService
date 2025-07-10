@@ -3,9 +3,12 @@ package handlers
 import (
 	"StudentService/database"
 	"StudentService/models"
+	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +18,7 @@ func CreateStudent(c *gin.Context) {
 	var student models.Student
 	if err := c.ShouldBindJSON(&student); err != nil {
 		log.Printf("创建学生请求解析失败: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求格式"}) //400
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求格式"})
 		return
 	}
 
@@ -24,22 +27,42 @@ func CreateStudent(c *gin.Context) {
 		"INSERT INTO students (id, name, tel, study) VALUES (?, ?, ?, ?)",
 		student.ID, student.Name, student.Tel, student.Study,
 	)
-
 	if err != nil {
 		log.Printf("创建学生失败: %v, 数据: %+v", err, student)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建学生失败"}) //500
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建学生失败"})
 		return
 	}
 
 	// 获取影响行数
 	rowsAffected, _ := result.RowsAffected()
 	log.Printf("成功创建学生 %s, 影响行数: %d", student.ID, rowsAffected)
+	// 清除学生列表缓存！！！
+	ctx := context.Background()
+	if err := database.RedisClient.Del(ctx, "students:list").Err(); err != nil {
+		log.Printf("清除列表缓存失败: %v", err)
+	}
 
-	c.JSON(http.StatusCreated, student) //201
+	c.JSON(http.StatusCreated, student)
 }
 
 // 获取所有学生
 func ListStudents(c *gin.Context) {
+	ctx := context.Background()
+	cacheKey := "students:list"
+
+	// 从Redis获取列表缓存
+	cachedData, err := database.RedisClient.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var students []models.Student
+		if err := json.Unmarshal([]byte(cachedData), &students); err == nil {
+			log.Printf("从缓存获取学生列表 (数量: %d)", len(students))
+			c.JSON(http.StatusOK, students)
+			return
+		}
+		log.Printf("列表缓存数据解析失败: %v", err)
+	}
+
+	// 没获取到数据，继续在数据库中查询
 	rows, err := database.DB.Query("SELECT id, name, tel, study FROM students")
 	if err != nil {
 		log.Printf("查询学生列表失败: %v", err)
@@ -50,32 +73,56 @@ func ListStudents(c *gin.Context) {
 
 	var students []models.Student
 	for rows.Next() {
-		var s models.Student
-		if err := rows.Scan(&s.ID, &s.Name, &s.Tel, &s.Study); err != nil {
+		var temp models.Student
+		if err := rows.Scan(&temp.ID, &temp.Name, &temp.Tel, &temp.Study); err != nil {
 			log.Printf("解析学生数据失败: %v", err)
-			continue // 继续处理其他行
+			continue
 		}
-		students = append(students, s)
+		students = append(students, temp)
 	}
 
 	if err := rows.Err(); err != nil {
 		log.Printf("遍历学生数据出错: %v", err)
 	}
 
+	log.Printf("从数据库获取学生列表 (数量: %d)", len(students))
+
+	// 存入缓存 (设置2分钟过期)
+	studentsJSON, _ := json.Marshal(students)
+	if err := database.RedisClient.Set(ctx, cacheKey, studentsJSON, 2*time.Minute).Err(); err != nil {
+		log.Printf("缓存学生列表失败: %v", err)
+	}
+
 	c.JSON(http.StatusOK, students)
 }
 
-// 获取单个学生
+// 获取单个学生 (带缓存)
 func GetStudent(c *gin.Context) {
 	id := c.Param("id")
+	ctx := context.Background()
+	cacheKey := "student:" + id
 
+	// 从Redis获取列表缓存
+	cachedData, err := database.RedisClient.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var student models.Student
+		if err := json.Unmarshal([]byte(cachedData), &student); err == nil {
+			log.Printf("从缓存获取学生 %s", id)
+			c.JSON(http.StatusOK, student)
+			return
+		}
+		log.Printf("缓存数据解析失败: %v", err)
+	}
+
+	// 没获取到数据，继续在数据库中查询
 	var student models.Student
-	err := database.DB.QueryRow(
+	err = database.DB.QueryRow(
 		"SELECT id, name, tel, study FROM students WHERE id = ?", id,
 	).Scan(&student.ID, &student.Name, &student.Tel, &student.Study)
 
 	switch {
 	case err == sql.ErrNoRows:
+		log.Printf("学生不存在: %s", id)
 		c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
 		return
 	case err != nil:
@@ -84,10 +131,18 @@ func GetStudent(c *gin.Context) {
 		return
 	}
 
+	log.Printf("从数据库获取学生 %s", id)
+
+	// 存入缓存
+	studentJSON, _ := json.Marshal(student)
+	if err := database.RedisClient.Set(ctx, cacheKey, studentJSON, 5*time.Minute).Err(); err != nil {
+		log.Printf("缓存学生数据失败: %v", err)
+	}
+
 	c.JSON(http.StatusOK, student)
 }
 
-// 更新学生
+// 更新学生 (更新后清除缓存)
 func UpdateStudent(c *gin.Context) {
 	id := c.Param("id")
 
@@ -120,15 +175,26 @@ func UpdateStudent(c *gin.Context) {
 	}
 
 	if rowsAffected == 0 {
+		log.Printf("更新失败: 学生不存在 %s", id)
 		c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
 		return
 	}
 
 	log.Printf("成功更新学生 %s, 影响行数: %d", id, rowsAffected)
+
+	// 清除该学生的缓存
+	ctx := context.Background()
+	cacheKey := "student:" + id
+	if err := database.RedisClient.Del(ctx, cacheKey).Err(); err != nil {
+		log.Printf("清除缓存失败: %v", err)
+	} else {
+		log.Printf("已清除学生缓存: %s", cacheKey)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "更新成功"})
 }
 
-// 删除学生
+// 删除学生 (清除缓存)
 func DeleteStudent(c *gin.Context) {
 	id := c.Param("id")
 
@@ -148,10 +214,26 @@ func DeleteStudent(c *gin.Context) {
 	}
 
 	if rowsAffected == 0 {
+		log.Printf("删除失败: 学生不存在 %s", id)
 		c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
 		return
 	}
 
 	log.Printf("成功删除学生 %s, 影响行数: %d", id, rowsAffected)
+
+	// 清除该学生的缓存
+	ctx := context.Background()
+	cacheKey := "student:" + id
+	if err := database.RedisClient.Del(ctx, cacheKey).Err(); err != nil {
+		log.Printf("清除缓存失败: %v", err)
+	} else {
+		log.Printf("已清除学生缓存: %s", cacheKey)
+	}
+
+	// 清除学生列表缓存
+	if err := database.RedisClient.Del(ctx, "students:list").Err(); err != nil {
+		log.Printf("清除列表缓存失败: %v", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "删除成功"})
 }
