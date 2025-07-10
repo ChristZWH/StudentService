@@ -1,0 +1,109 @@
+/*
+   通过一下步骤查询数据库名称：
+   sudo mysql -u root -p                 登录数据库
+   SELECT User, Host FROM mysql.user;    查询所有用户
+   SELECT CURRENT_USER();                查看当前用户
+
+   查看绑定地址：SHOW VARIABLES LIKE 'bind_address';
+   查看MySQl端口：SHOW VARIABLES LIKE 'port';
+*/
+// user := "root"
+
+package database
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"sync"
+	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+)
+
+var (
+	DB            *sql.DB
+	monitorCtx    context.Context
+	monitorCancel context.CancelFunc
+	monitorWg     sync.WaitGroup
+)
+
+func InitMySQL() error {
+	// 从环境变量获取凭证
+	user := os.Getenv("DB_USER")
+	if user == "" {
+		user = "root" // 默认用户
+	}
+
+	pass := "ZWH20050512"
+
+	// 完整DSN（包含必要参数）
+	dsn := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/student_db?parseTime=true&charset=utf8mb4&timeout=5s", user, pass)
+
+	var err error
+	DB, err = sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("数据库连接失败: %w", err)
+	}
+
+	// 配置连接池
+	DB.SetMaxOpenConns(25)
+	DB.SetMaxIdleConns(5)
+	DB.SetConnMaxLifetime(5 * time.Minute)
+	DB.SetConnMaxIdleTime(2 * time.Minute)
+
+	if err = DB.Ping(); err != nil {
+		return fmt.Errorf("数据库连接测试失败: %w", err)
+	}
+
+	log.Println("MySQL连接成功")
+
+	// 启动监控
+	StartMonitor()
+
+	return nil
+}
+
+func Close() {
+	if DB != nil {
+		StopMonitor()
+		if err := DB.Close(); err != nil {
+			log.Printf("关闭数据库连接失败: %v", err)
+		} else {
+			log.Println("数据库连接已关闭")
+		}
+	}
+}
+
+func StartMonitor() {
+	// 创建可取消的context
+	monitorCtx, monitorCancel = context.WithCancel(context.Background())
+	monitorWg.Add(1)
+
+	go func() {
+		defer monitorWg.Done()
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				stats := DB.Stats()
+				log.Printf("连接池状态: 使用中=%d 空闲=%d 等待=%d",
+					stats.InUse, stats.Idle, stats.WaitCount)
+			case <-monitorCtx.Done():
+				log.Println("连接池监控已停止")
+				return
+			}
+		}
+	}()
+}
+
+func StopMonitor() {
+	if monitorCancel != nil {
+		monitorCancel()
+		monitorWg.Wait() // 等待监控goroutine退出
+	}
+}
