@@ -1,0 +1,11 @@
+StudentService/
+├── main.go             # 入口文件
+├── go.mod
+├── go.sum
+├── handlers/           # 请求处理       1
+│   └── student.go
+├── models/             # 数据模型       1
+│   └── student.go
+└── database/           # 数据库连接    1
+    ├── mysql.go
+    └── redis.go

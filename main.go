@@ -2,9 +2,8 @@ package main
 
 import (
 	"StudentService/database"
-	handlers "StudentService/handleers"
+	"StudentService/handleers"
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,7 +15,6 @@ import (
 )
 
 func main() {
-	fmt.Println("Gin version:", gin.Version)
 	// 初始化数据库
 	if err := database.InitDatabases(); err != nil {
 		log.Fatalf("数据库初始化失败: %v", err)
@@ -26,14 +24,24 @@ func main() {
 	// 路由
 	router := gin.Default()
 
+	// 添加日志中间件
+	router.Use(func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		duration := time.Since(start)
+		log.Printf("这个%s %s %d %s", c.Request.Method, c.Request.URL, c.Writer.Status(), duration)
+	})
+
+	router.POST("/login", handleers.LoginHandler)
 	// 路由配置restful风
 	studentRoutes := router.Group("/students")
+	studentRoutes.Use(handleers.JWTAuthMiddleware()) // 应用JWT中间件
 	{
-		studentRoutes.GET("/", handlers.ListStudents)
-		studentRoutes.POST("/", handlers.CreateStudent)
-		studentRoutes.GET("/:id", handlers.GetStudent)
-		studentRoutes.PUT("/:id", handlers.UpdateStudent)
-		studentRoutes.DELETE("/:id", handlers.DeleteStudent)
+		studentRoutes.GET("/", handleers.ListStudents)
+		studentRoutes.POST("/", handleers.CreateStudent)
+		studentRoutes.GET("/:id", handleers.GetStudent)
+		studentRoutes.PUT("/:id", handleers.UpdateStudent)
+		studentRoutes.DELETE("/:id", handleers.DeleteStudent)
 	}
 
 	// 创建HTTP服务器
