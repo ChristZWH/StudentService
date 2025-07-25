@@ -31,7 +31,6 @@ func InitMySQL() error {
 		user = "root" // 默认用户
 	}
 	pass := "ZWH20050512"
-	// 完整DSN（包含必要参数）
 	dsn := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/student_db?parseTime=true&charset=utf8mb4&timeout=5s", user, pass)
 
 	var err error

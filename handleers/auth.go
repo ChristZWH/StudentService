@@ -12,7 +12,7 @@ import (
 
 var (
 	authConfig = models.AuthConfig{
-		JWTSecret:     "your_very_strong_secret_here", // 从环境变量获取
+		JWTSecret:     "111",
 		TokenDuration: 24 * time.Hour,
 	}
 )
