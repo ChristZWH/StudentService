@@ -21,15 +21,14 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var (
-	DB *sql.DB
-)
+var DB *sql.DB
 
 func InitMySQL() error {
 	user := os.Getenv("DB_USER")
 	if user == "" {
 		user = "root" // 默认用户
 	}
+	// 测试阶段直接设置密码
 	pass := "ZWH20050512"
 	dsn := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/student_db?parseTime=true&charset=utf8mb4&timeout=5s", user, pass)
 
@@ -41,14 +40,13 @@ func InitMySQL() error {
 	// 配置连接池
 	DB.SetMaxOpenConns(25)
 	DB.SetMaxIdleConns(5)
-	DB.SetConnMaxLifetime(5 * time.Minute)
-	DB.SetConnMaxIdleTime(2 * time.Minute)
+	DB.SetConnMaxLifetime(30 * time.Minute)
+	DB.SetConnMaxIdleTime(20 * time.Minute)
 	if err = DB.Ping(); err != nil {
 		return fmt.Errorf("数据库连接测试失败: %w", err)
 	}
 
 	log.Println("MySQL连接成功")
-
 	return nil
 }
 

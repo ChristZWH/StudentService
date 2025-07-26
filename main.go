@@ -18,6 +18,7 @@ func main() {
 	// 初始化数据库
 	if err := database.InitDatabases(); err != nil {
 		log.Fatalf("数据库初始化失败: %v", err)
+		return
 	}
 	defer database.CloseDatabases() // 确保关闭所有连接
 
@@ -67,10 +68,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 关闭服务器
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("服务器关闭失败: %v", err)
 	}
 	log.Println("服务已关闭")
-	//最后还会调用栈main的上一个函数：database.CloseDatabases()
 }

@@ -12,18 +12,16 @@ import (
 var RedisClient *redis.Client
 
 func InitRedis() error {
-	// 从环境变量获取Redis配置
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
 		redisAddr = "localhost:6379" // 默认地址
 	}
-
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:         redisAddr,
 		Password:     redisPassword,
-		DB:           0, // 默认数据库
+		DB:           0,
 		DialTimeout:  5 * time.Second,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,

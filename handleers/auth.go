@@ -26,13 +26,13 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	// TODO: 实际项目中应查询数据库验证用户
+	// 这里简化代码没有从数据库中查询
 	if user.Username != "admin" || user.Password != "admin123" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
 	}
 
-	// 创建JWT token
+	// 创建JWTtoken
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, models.Claims{
 		Username: user.Username,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -45,7 +45,7 @@ func LoginHandler(c *gin.Context) {
 	tokenString, err := token.SignedString([]byte(authConfig.JWTSecret))
 	if err != nil {
 		log.Printf("生成JWT失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成令牌失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成signature失败"})
 		return
 	}
 
