@@ -35,15 +35,15 @@ func CreateStudent(c *gin.Context) {
 	// rowsAffected, _ := result.RowsAffected()
 	// log.Printf("成功创建学生 %s, 影响行数: %d", student.ID, rowsAffected)
 
-	// --- 使用 GORM 创建记录 ---
-	result := database.GormDB.Create(&student) // 传入结构体指针
+	// GORM 创建信息
+	// func (db *gorm.DB) Create(value interface{}) (tx *gorm.DB)
+	result := database.GormDB.Create(&student)
 	if result.Error != nil {
 		log.Printf("创建学生失败: %v, 数据: %+v", result.Error, student)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建学生失败"})
 		return
 	}
-	log.Printf("成功创建学生 %s, ID: %v", student.ID, student.ID) // GORM 会填充主键
-	// --- GORM 创建结束 ---
+	log.Printf("成功创建学生 %s, ID: %v", student.ID, student.ID)
 
 	// 清除学生列表缓存！！！
 	ctx := context.Background()
@@ -97,15 +97,15 @@ func ListStudents(c *gin.Context) {
 	// 	log.Printf("遍历学生数据出错: %v", err)
 	// }
 
-	// --- 使用 GORM 查询所有记录 ---
+	// GORM 查询所有记录
 	var students []models.Student
-	result := database.GormDB.Find(&students) // Find 查询所有记录
+	// func (db *gorm.DB) Find(dest interface{}, conds ...interface{}) (tx *gorm.DB)
+	result := database.GormDB.Find(&students)
 	if result.Error != nil {
 		log.Printf("查询学生列表失败: %v", result.Error)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取学生列表失败"})
 		return
 	}
-	// --- GORM 查询结束 ---
 
 	log.Printf("从数据库获取学生列表 (数量: %d)", len(students))
 
@@ -153,10 +153,10 @@ func GetStudent(c *gin.Context) {
 	// 	return
 	// }
 
-	// --- 使用 GORM 根据主键查询 ---
+	// GORM根据主键查询
 	var student models.Student
-	result := database.GormDB.First(&student, "id = ?", id) // First 查找第一个匹配的记录
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {    // 需要导入 "errors" 和 "gorm.io/gorm"
+	result := database.GormDB.First(&student, "id = ?", id)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		log.Printf("学生不存在: %s", id)
 		c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
 		return
@@ -166,7 +166,6 @@ func GetStudent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取学生信息失败"})
 		return
 	}
-	// --- GORM 查询结束 ---
 
 	log.Printf("从数据库获取学生 %s", id)
 
@@ -212,8 +211,8 @@ func UpdateStudent(c *gin.Context) {
 	// }
 	// log.Printf("成功更新学生 %s, 影响行数: %d", id, rowsAffected)
 
-	// --- 使用 GORM 更新记录 ---
-	// 方法 1: 先查询再更新 (可以更精确地知道是否找到记录)
+	// GORM 更新记录
+	// 先查再更新
 	var student models.Student
 	result := database.GormDB.First(&student, "id = ?", id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -250,7 +249,6 @@ func UpdateStudent(c *gin.Context) {
 	} else {
 		log.Printf("没有需要更新的字段 for 学生 %s", id)
 	}
-	// --- GORM 更新结束 ---
 
 	// 清除该学生的缓存
 	ctx := context.Background()
@@ -260,7 +258,6 @@ func UpdateStudent(c *gin.Context) {
 	} else {
 		log.Printf("已清除学生缓存: %s", cacheKey)
 	}
-	// 清除学生列表缓存
 	if err := database.RedisClient.Del(ctx, "students:list").Err(); err != nil {
 		log.Printf("清除列表缓存失败: %v", err)
 	}
@@ -291,8 +288,8 @@ func DeleteStudent(c *gin.Context) {
 	// }
 	// log.Printf("成功删除学生 %s, 影响行数: %d", id, rowsAffected)
 
-	// --- 使用 GORM 删除记录 ---
-	// 方法 1: 先查询再删除 (可以更精确地知道是否找到记录)
+	// GORM 删除记录
+	// 先查再删
 	var student models.Student
 	result := database.GormDB.First(&student, "id = ?", id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -306,7 +303,7 @@ func DeleteStudent(c *gin.Context) {
 		return
 	}
 
-	result = database.GormDB.Delete(&student) // 删除记录
+	result = database.GormDB.Delete(&student)
 	if result.Error != nil {
 		log.Printf("删除学生 %s 失败: %v", id, result.Error)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除学生失败"})
@@ -322,8 +319,6 @@ func DeleteStudent(c *gin.Context) {
 	} else {
 		log.Printf("已清除学生缓存: %s", cacheKey)
 	}
-
-	// 清除学生列表缓存
 	if err := database.RedisClient.Del(ctx, "students:list").Err(); err != nil {
 		log.Printf("清除列表缓存失败: %v", err)
 	}
