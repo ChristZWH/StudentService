@@ -1,14 +1,3 @@
-/*
-   通过一下步骤查询数据库名称：
-   sudo mysql -u root -p                 登录数据库
-   SELECT User, Host FROM mysql.user;    查询所有用户
-   SELECT CURRENT_USER();                查看当前用户
-
-   查看绑定地址：SHOW VARIABLES LIKE 'bind_address';
-   查看MySQl端口：SHOW VARIABLES LIKE 'port';
-*/
-// user := "root"
-
 package database
 
 import (
@@ -44,7 +33,7 @@ func InitMySQL() error {
 	if err != nil {
 		return fmt.Errorf("GORM 数据库连接失败: %w", err)
 	}
-	// --- 配置 GORM 底层的 database/sql 连接池 ---
+	// 配置 GORM 底层的 database/sql 连接池
 	DB, err := GormDB.DB() // 获取底层的 *sql.DB 对象
 	if err != nil {
 		return fmt.Errorf("获取底层 sql.DB 失败: %w", err)
@@ -53,7 +42,7 @@ func InitMySQL() error {
 	DB.SetMaxOpenConns(25)
 	DB.SetMaxIdleConns(5)
 	DB.SetConnMaxLifetime(30 * time.Minute)
-	DB.SetConnMaxIdleTime(20 * time.Minute)
+	DB.SetConnMaxIdleTime(10 * time.Minute)
 	if err = DB.Ping(); err != nil {
 		return fmt.Errorf("数据库连接测试失败: %w", err)
 	}

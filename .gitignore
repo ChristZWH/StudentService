@@ -1,0 +1,5 @@
+# 忽略 ls 文件
+ls
+
+# 忽略 ls.pub 文件
+ls.pub

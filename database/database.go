@@ -18,7 +18,6 @@ func InitDatabases() error {
 		return err
 	}
 	log.Println("Redis初始化成功")
-
 	log.Println("所有数据库初始化完成")
 	return nil
 }

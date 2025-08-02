@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,23 +21,27 @@ func main() {
 		log.Fatalf("数据库初始化失败: %v", err)
 		return
 	}
-	defer database.CloseDatabases() // 确保关闭所有连接
+	defer database.CloseDatabases()
 
-	// 路由
 	router := gin.Default()
-
-	// 添加日志中间件
+	// 添加CORS中间件 (允许所有来源的跨域请求)
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 	router.Use(func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
 		duration := time.Since(start)
-		log.Printf("这个%s %s %d %s", c.Request.Method, c.Request.URL, c.Writer.Status(), duration)
+		log.Printf("请求：%s %s ; 状态：%d ; 持续时间： %s ; 客户端：%s", c.Request.Method, c.Request.URL, c.Writer.Status(), duration, c.ClientIP())
 	})
-
-	router.POST("/login", handleers.LoginHandler)
-	// 路由配置restful风
+	// router.POST("/login", handleers.LoginHandler)
 	studentRoutes := router.Group("/students")
-	studentRoutes.Use(handleers.JWTAuthMiddleware()) // 应用JWT中间件
+	// studentRoutes.Use(handleers.JWTAuthMiddleware()) // 应用JWT中间件
 	{
 		studentRoutes.GET("/", handleers.ListStudents)
 		studentRoutes.POST("/", handleers.CreateStudent)

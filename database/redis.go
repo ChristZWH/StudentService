@@ -9,7 +9,9 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-var RedisClient *redis.Client
+var (
+	RedisClient *redis.Client
+)
 
 func InitRedis() error {
 	redisAddr := os.Getenv("REDIS_ADDR")
