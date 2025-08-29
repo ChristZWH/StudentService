@@ -6,6 +6,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,7 +23,9 @@ func main() {
 		return
 	}
 	defer database.CloseDatabases()
-
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	router := gin.Default()
 	// 添加CORS中间件 (允许所有来源的跨域请求)
 	router.Use(cors.New(cors.Config{
@@ -39,12 +42,15 @@ func main() {
 		duration := time.Since(start)
 		log.Printf("请求：%s %s ; 状态：%d ; 持续时间： %s ; 客户端：%s", c.Request.Method, c.Request.URL, c.Writer.Status(), duration, c.ClientIP())
 	})
+	router.RedirectTrailingSlash = false // 禁用末尾斜杠重定向
+	router.RedirectFixedPath = false     // 禁用路径规范化
+	router.HandleMethodNotAllowed = true // 确保方法不匹配返回 405 而非重定向
 	// router.POST("/login", handleers.LoginHandler)
 	studentRoutes := router.Group("/students")
 	// studentRoutes.Use(handleers.JWTAuthMiddleware()) // 应用JWT中间件
 	{
-		studentRoutes.GET("/", handleers.ListStudents)
-		studentRoutes.POST("/", handleers.CreateStudent)
+		studentRoutes.GET("", handleers.ListStudents)
+		studentRoutes.POST("", handleers.CreateStudent)
 		studentRoutes.GET("/:id", handleers.GetStudent)
 		studentRoutes.PUT("/:id", handleers.UpdateStudent)
 		studentRoutes.DELETE("/:id", handleers.DeleteStudent)
@@ -52,9 +58,13 @@ func main() {
 
 	// 创建HTTP服务器
 	srv := &http.Server{
-		Addr:    ":8080",
-		Handler: router,
+		Addr:           ":8080",
+		Handler:        router,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
+	srv.SetKeepAlivesEnabled(true)
 	go func() {
 		log.Println("服务启动，监听端口 8080...")
 		// func (srv *http.Server) ListenAndServe() error

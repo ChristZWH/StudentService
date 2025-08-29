@@ -128,6 +128,7 @@ func ListStudents(c *gin.Context) {
 		cacheData, err := database.RedisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
 			if cacheData == "" {
+				log.Printf("空缓存: %s", cacheKey)
 				return []models.Student{}, nil
 			}
 			var studentTemp []models.Student
@@ -135,9 +136,9 @@ func ListStudents(c *gin.Context) {
 				log.Printf("从缓存获取学生列表 (数量: %d)", len(studentTemp))
 				return studentTemp, nil
 			}
-			log.Printf("列表缓存数据解析失败: %v", err)
+			log.Printf("列表缓存解析失败: %v", err)
 		} else if err != redis.Nil {
-			log.Printf("获取缓存失败: %v", err)
+			log.Printf("Redis 获取失败: %v", err)
 		}
 
 		var studentTemp []models.Student
@@ -148,13 +149,19 @@ func ListStudents(c *gin.Context) {
 		}
 		log.Printf("从数据库获取学生列表 (数量: %d)", len(studentTemp))
 
-		expiration := 5 * time.Minute
+		expiration := 10 * time.Minute
 		if len(studentTemp) == 0 {
-			expiration = 30 * time.Second
+			expiration = 5 * time.Second
 		}
-		allStudentJson, _ := json.Marshal(studentTemp)
-		if err := database.RedisClient.Set(ctx, cacheKey, allStudentJson, expiration); err != nil {
-			log.Printf("缓存学生列表失败: %v", err)
+		allStudentJson, err := json.Marshal(studentTemp)
+		if err != nil {
+			log.Printf("序列化学生列表失败: %v", err)
+			return studentTemp, nil
+		}
+		if err := database.RedisClient.Set(ctx, cacheKey, allStudentJson, expiration).Err(); err != nil {
+			log.Printf("Redis 写入失败: %s, 错误: %v", cacheKey, err)
+		} else {
+			log.Printf("Redis 写入成功: %s", cacheKey)
 		}
 		return studentTemp, nil
 	})
@@ -164,7 +171,6 @@ func ListStudents(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, studentListResult)
 }
 
@@ -173,88 +179,46 @@ func GetStudent(c *gin.Context) {
 	id := c.Param("id")
 	ctx := context.Background()
 	cacheKey := "student:" + id
-
-	// 从Redis获取列表缓存
-	// cachedData, err := database.RedisClient.Get(ctx, cacheKey).Result()
-	// if err == nil {
-	// 	var student models.Student
-	// 	if err := json.Unmarshal([]byte(cachedData), &student); err == nil {
-	// 		log.Printf("从缓存获取学生 %s", id)
-	// 		c.JSON(http.StatusOK, student)
-	// 		return
-	// 	}
-	// 	log.Printf("缓存数据解析失败: %v", err)
-	// }
-
-	// // 没获取到数据，继续在数据库中查询(最原始的数据库查询)
-	// sqlstr := "SELECT id, name, tel, study FROM students WHERE id = ?"
-	// var student models.Student
-	// err = database.DB.QueryRow(sqlstr, id).Scan(&student.ID, &student.Name, &student.Tel, &student.Study)
-	// switch {
-	// case err == sql.ErrNoRows:
-	// 	log.Printf("学生不存在: %s", id)
-	// 	c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
-	// 	return
-	// case err != nil:
-	// 	log.Printf("查询学生 %s 失败: %v", id, err)
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "获取学生信息失败"})
-	// 	return
-	// }
-
-	// GORM根据主键查询（改进最原始的数据库查询）
-	// var student models.Student
-	// result := database.GormDB.First(&student, "id = ?", id)
-	// if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-	// 	log.Printf("学生不存在: %s", id)
-	// 	c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
-	// 	return
-	// }
-	// if result.Error != nil {
-	// 	log.Printf("查询学生 %s 失败: %v", id, result.Error)
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "获取学生信息失败"})
-	// 	return
-	// }
-	// log.Printf("从数据库获取学生 %s", id)
-
-	// // 存入缓存
-	// studentJSON, _ := json.Marshal(student)
-	// if err := database.RedisClient.Set(ctx, cacheKey, studentJSON, 5*time.Minute).Err(); err != nil {
-	// 	log.Printf("缓存学生数据失败: %v", err)
-	// }
-
-	// func (g *singleflight.Group) Do(key string, fn func() (interface{}, error)) (v interface{}, err error, shared bool)
-	studentInfomation, err, _ := studentsGroup.Do(cacheKey, func() (interface{}, error) {
-		// 先从redis中获取数据
+	studentInfomation, err, _ := studentGroup.Do(cacheKey, func() (interface{}, error) {
 		cachedData, err := database.RedisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
 			if cachedData == "" {
+				log.Printf("空缓存: %s", cacheKey)
 				return nil, errors.New("空缓存")
 			}
 			var studentTemp models.Student
-			if e := json.Unmarshal([]byte(cachedData), &studentTemp); e == nil {
+			var e error
+			if e = json.Unmarshal([]byte(cachedData), &studentTemp); e == nil {
 				log.Printf("从缓存获取学生 %s", id)
 				return studentTemp, nil
 			}
+			log.Printf("缓存解析失败: %v", e)
+		} else if err != redis.Nil {
+			log.Printf("Redis 获取失败: %v", err)
 		}
-		// 从数据库中获取
+
 		var studentTemp models.Student
 		result := database.GormDB.First(&studentTemp, "id = ?", id)
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			database.RedisClient.Set(ctx, cacheKey, "", 20*time.Second)
+			log.Printf("学生不存在: %s", id)
 			return nil, errors.New("数据库中学生信息不存在")
 		}
 		if result.Error != nil {
+			log.Printf("数据库查询失败: %v", result.Error)
 			return nil, result.Error
 		}
+		log.Printf("从数据库获取学生 %s", id)
 
 		studentJSON, err := json.Marshal(studentTemp)
 		if err != nil {
 			log.Printf("序列化学生失败: %v", err)
-			return studentTemp, nil // 返回数据但不缓存
+			return studentTemp, nil
 		}
 
 		if err := database.RedisClient.Set(ctx, cacheKey, studentJSON, 5*time.Minute).Err(); err != nil {
-			log.Printf("缓存学生失败: %v", err)
+			log.Printf("Redis 写入失败: %s, 错误: %v", cacheKey, err)
+		} else {
+			log.Printf("Redis 写入成功: %s", cacheKey)
 		}
 		return studentTemp, nil
 	})
@@ -265,6 +229,7 @@ func GetStudent(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取学生信息错误"})
+		return
 	}
 	c.JSON(http.StatusOK, studentInfomation)
 }

@@ -1,5 +1,7 @@
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
+github.com/adeven/go-wrk v0.0.0-20200418124433-63e11dd31fef h1:9ReojFXBwV4MhH5UYmWoB0Xz7ilFqW1mZeelVAlxxVc=
+github.com/adeven/go-wrk v0.0.0-20200418124433-63e11dd31fef/go.mod h1:IzL4XE4eKgV2BPMEYAYIVGdkdfSEo/9+vwc/QzR24Q8=
 github.com/bytedance/sonic v1.11.6 h1:oUp34TzMlL+OY1OUWxHqsdkgC/Zfc85zGqw9siXjrc0=
 github.com/bytedance/sonic v1.11.6/go.mod h1:LysEHSvpvDySVdC2f87zGWf6CIKJcAvqab1ZaiQtds4=
 github.com/bytedance/sonic v1.13.3 h1:MS8gmaH16Gtirygw7jV91pDCN33NyMrPbN7qiYhEsF0=

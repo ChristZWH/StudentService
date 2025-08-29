@@ -3,9 +3,12 @@ StudentService/
 ├── go.mod
 ├── go.sum
 ├── handlers/           # 请求处理       1
+│   ├── auth.go
 │   └── student.go
 ├── models/             # 数据模型       1
+│   ├── auth.go
 │   └── student.go
 └── database/           # 数据库连接    1
+    ├── database.go
     ├── mysql.go
     └── redis.go

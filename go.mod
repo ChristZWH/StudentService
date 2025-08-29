@@ -8,6 +8,8 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 )
 
+require github.com/adeven/go-wrk v0.0.0-20200418124433-63e11dd31fef // indirect
+
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bytedance/sonic v1.13.3 // indirect

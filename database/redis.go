@@ -27,8 +27,8 @@ func InitRedis() error {
 		DialTimeout:  5 * time.Second,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
-		PoolSize:     20,
-		MinIdleConns: 5,
+		PoolSize:     150,
+		MinIdleConns: 100,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

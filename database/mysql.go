@@ -39,10 +39,10 @@ func InitMySQL() error {
 		return fmt.Errorf("获取底层 sql.DB 失败: %w", err)
 	}
 	// 配置连接池
-	DB.SetMaxOpenConns(25)
-	DB.SetMaxIdleConns(5)
-	DB.SetConnMaxLifetime(30 * time.Minute)
-	DB.SetConnMaxIdleTime(10 * time.Minute)
+	DB.SetMaxOpenConns(20)
+	DB.SetMaxIdleConns(10)
+	DB.SetConnMaxLifetime(10 * time.Minute)
+	DB.SetConnMaxIdleTime(5 * time.Minute)
 	if err = DB.Ping(); err != nil {
 		return fmt.Errorf("数据库连接测试失败: %w", err)
 	}
