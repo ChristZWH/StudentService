@@ -73,3 +73,11 @@ func Close() {
 		}
 	}
 }
+
+func CreateGorm() (*gorm.DB, error) {
+	user := "root"
+	pass := "ZWH20050512"
+	dns := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/student_db?parseTime=true&charset=utf8mb4&timeout=5s", user, pass)
+	db, err := gorm.Open(mysql.Open(dns), &gorm.Config{})
+	return db, err
+}
